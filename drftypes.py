@@ -3,33 +3,47 @@ import logging
 from typing import NewType, Optional
 
 ResourceID = NewType("ResourceID", int)
-ResourceVec = list[float]
 
 CPU = ResourceID(0)
 RAM = ResourceID(1)
 
-def resource_vec_add(a0: ResourceVec, a1: ResourceVec) -> ResourceVec:
-  assert len(a0) == len(a1)
-  result: ResourceVec = []
-  for i in range(len(a0)):
-    result.append(a0[i] + a1[i])
-  return result
+class ResourceVec:
+    def __init__(self, values: list[float]) -> None:
+        self._values = values
 
+    def __str__(self) -> str:
+        return f"{self._values}"
 
-def resource_vec_sub(a0: ResourceVec, a1: ResourceVec) -> ResourceVec:
-  assert len(a0) == len(a1)
-  result: ResourceVec = []
-  for i in range(len(a0)):
-    result.append(a0[i] - a1[i])
-  return result
+    def n_dims(self) -> int:
+        return len(self._values)
 
+    def values(self) -> list[float]:
+        return self._values
 
-def resource_vec_le(a0: ResourceVec, a1: ResourceVec) -> bool:
-  assert len(a0) == len(a1)
-  for i in range(len(a0)):
-    if a0[i] > a1[i]:
-      return False
-  return True
+    def get(self, id: ResourceID) -> float:
+        return self._values[id]
+
+    def add(self, a1: "ResourceVec") -> "ResourceVec":
+        assert len(self._values) == len(a1._values)
+        result = []
+        for i in range(len(self._values)):
+            result.append(self._values[i] + a1._values[i])
+        return ResourceVec(result)
+
+    def sub(self, a1: "ResourceVec") -> "ResourceVec":
+        assert len(self._values) == len(a1._values)
+        result = []
+        for i in range(len(self._values)):
+            result.append(self._values[i] - a1._values[i])
+        return ResourceVec(result)
+
+    def le(self, a1: "ResourceVec") -> bool:
+        assert len(self._values) == len(a1._values)
+
+        for i in range(len(self._values)):
+            if self._values[i] > a1._values[i]:
+                return False
+        return True
 
 
 @dataclass
@@ -39,15 +53,15 @@ class User:
   n_tasks: int
 
   def used_resources(self) -> ResourceVec:
-    return [x * self.n_tasks for x in self.per_task_req]
+    return ResourceVec([x * self.n_tasks for x in self.per_task_req.values()])
 
   def dominant_share(self, capacity: ResourceVec) -> tuple[ResourceID, float]:
-    assert len(capacity) == len(self.per_task_req)
+    assert capacity.n_dims() == self.per_task_req.n_dims()
     used = self.used_resources()
     max_share = 0.0
     dominant_resource_id = ResourceID(-1)
-    for resource_id, cap in enumerate(capacity):
-      share = used[resource_id] / cap
+    for resource_id, cap in enumerate(capacity.values()):
+      share = used.values()[resource_id] / cap
       if share > max_share:
         max_share = share
         dominant_resource_id = ResourceID(resource_id)

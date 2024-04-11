@@ -6,8 +6,11 @@ import drftypes as dt
 
 def main() -> None:
   logging.basicConfig(level=logging.INFO)
-  capacity = [20, 30]
-  users = [dt.User("u0", [2, 1], 0), dt.User("u1", [1, 2], 0)]
+  capacity = dt.ResourceVec([20, 30])
+  users = [
+      dt.User("u0", dt.ResourceVec([2.0, 1.0]), 0),
+      dt.User("u1", dt.ResourceVec([1.0, 2.0]), 0),
+  ]
 
   s = drf.Scheduler(capacity, users)
   for i in range(10):

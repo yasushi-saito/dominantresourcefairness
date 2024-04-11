@@ -8,23 +8,23 @@
 import logging
 
 import drftypes as dt
-
+from typing import Optional
 
 class Scheduler:
 
-  def __init__(self, capacity: dt.ResourceVec, users: list[dt.User]) -> bool:
+  def __init__(self, capacity: dt.ResourceVec, users: list[dt.User]) -> None:
     self._capacity = capacity
-    self._usage: ResourceVec = [0, 0]
+    self._usage = dt.ResourceVec([0, 0])
     self._users = users
 
   def usage(self) -> dt.ResourceVec:
     return self._usage
 
   def unused(self) -> dt.ResourceVec:
-    return dt.resource_vec_sub(self._capacity, self._usage)
+    return self._capacity.sub(self._usage)
 
   def schedule(self) -> bool:
-    user: Optional[User] = None
+    user: Optional[dt.User] = None
     min_dominant_share = 99999.0
     for u in self._users:
       resource_id, share = u.dominant_share(self._capacity)
@@ -33,8 +33,8 @@ class Scheduler:
         user = u
     assert user
     demand = user.per_task_req
-    want_usage = dt.resource_vec_add(self._usage, demand)
-    if not dt.resource_vec_le(want_usage, self._capacity):
+    want_usage = self._usage.add(demand)
+    if not want_usage.le(self._capacity):
       return False
 
     self._usage = want_usage
