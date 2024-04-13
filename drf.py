@@ -10,9 +10,32 @@ import logging
 import drftypes as dt
 from typing import Optional
 
+
+@dataclass
+class User:
+  user_id: dt.UserID
+  per_task_req: ResourceVec
+  n_tasks: int
+
+  def allocated(self) -> ResourceVec:
+    """Amount of resources allocated to this user"""
+    return ResourceVec([x * self.n_tasks for x in self.per_task_req.values()])
+
+  def dominant_share(self, capacity: ResourceVec) -> tuple[ResourceID, float]:
+    assert capacity.n_dims() == self.per_task_req.n_dims()
+    used = self.used_resources()
+    max_share = 0.0
+    dominant_resource_id = ResourceID(-1)
+    for resource_id, cap in enumerate(capacity.values()):
+      share = used.values()[resource_id] / cap
+      if share > max_share:
+        max_share = share
+        dominant_resource_id = ResourceID(resource_id)
+    return dominant_resource_id, max_share
+
 class Scheduler:
 
-  def __init__(self, capacity: dt.ResourceVec, users: list[dt.User]) -> None:
+  def __init__(self, capacity: dt.ResourceVec, users: list[User]) -> None:
     self._capacity = capacity
     self._usage = dt.ResourceVec([0, 0])
     self._users = users
@@ -24,7 +47,7 @@ class Scheduler:
     return self._capacity.sub(self._usage)
 
   def schedule(self) -> bool:
-    user: Optional[dt.User] = None
+    user: Optional[User] = None
     min_dominant_share = 99999.0
     for u in self._users:
       resource_id, share = u.dominant_share(self._capacity)
