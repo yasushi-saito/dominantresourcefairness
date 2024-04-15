@@ -2,7 +2,9 @@
 # Mechanism for Heterogeneous Servers
 #
 # Jalal Khamse-Ashari, Ioannis Lambadaris, George Kesidis, Bhuvan Urgaonkar, Yiqiang Zhao
-
+#
+# https://arxiv.org/pdf/1611.00404.pdf
+#
 # https://github.com/apache/mesos/compare/master...yuquanshan:mesos:multi-scheduler
 
 
@@ -87,7 +89,7 @@ class User:
 
 class Server:
 
-  def __init__(self, id: dt.UserID, capacity: dt.ResourceVec) -> None:
+  def __init__(self, id: dt.ServerID, capacity: dt.ResourceVec) -> None:
     self.id = id
     self.capacity = capacity
     self.allocated = set[User]()
@@ -138,20 +140,16 @@ def _xxx(
     s: Server,
     schedulable_users: set[User],
     saturated_resources: set[dt.ResourceID],
-) -> set[User]:
-  max_vds = 0.0
-  max_u = set[User]()
+) -> float:
+  max_vds = -1.0 # report an invalid value when saturated_resources is empty.
 
   for u in schedulable_users:
     for r in saturated_resources:
       if u.per_server_usage(s)[r] * u.req[r] > 0:
         vds = _vds(u, s) / u.weight
-        if vds == max_vds:
-          max_u.add(u)
-        elif vds > max_vds:
-          max_vds = vds
-          max_u = {u}
-  return max_u
+        max_vds = max(max_vds, vds)
+
+  return max_vds
 
 
 def _saturated_resources(
@@ -274,7 +272,7 @@ class Scheduler:
         min_vds = dt.INFINITY
         min_users = set[User]()
         for u in schedulable_users:
-          v = _vds(u, s)
+          v = _vds(u, s) / u.weight
           if v == min_vds:
             min_users.add(u)
           elif v < min_vds:
@@ -284,23 +282,17 @@ class Scheduler:
 
         # Compute R^*_i (saturated_resources)
         saturated_resources = _saturated_resources(s, min_users)
-        #     set[dt.ResourceID]()
-        # for u in min_users:
-        #   user_usage = u.per_server_usage(s)
-        #   server_free = s.free()
-        #   for r in dt.ALL_RESOURCE_TYPES:
-        #     if u.req[r] > 0 and server_free[r] <= dt.INFINITISIMAL:
-        #       saturated_resources.add(r)
-        # logging.info(f"saturated={saturated_resources}")
+        logging.info(f"min_vds={min_vds} min_users={min_users} saturated={saturated_resources}")
 
         xxx = _xxx(s, schedulable_users, saturated_resources)
-        print(xxx)
-        if schedulable_users == xxx:
+        logging.info(f"min_vds={min_vds}, xxx={xxx}")
+        if min_vds == xxx:
           for u in schedulable_users:
             for r in saturated_resources:
               if u.req[r] > 0:
                 schedulable_users.remove(u)
                 break
+          logging.info(f"schedulable_users={schedulable_users}")
         else:
           updated = True
           self._update_allocation(
