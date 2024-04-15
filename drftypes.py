@@ -22,14 +22,19 @@ class ResourceVec:
   def __str__(self) -> str:
     return f"{self._values}"
 
-  def __eq__(self, a: "ResourceVec") -> bool:
+  def __repr__(self) -> str:
+    return f"{self._values}"
+
+  def __eq__(self, a: object) -> bool:
+    assert type(a) == ResourceVec
     assert len(self._values) == len(a._values)
     for i in range(len(self._values)):
       if self._values[i] != a._values[i]:
         return False
     return True
 
-  def __ne__(self, a: "ResourceVec") -> bool:
+  def __ne__(self, a: object) -> bool:
+    assert type(a) == ResourceVec
     return not (self == a)
 
   def __getitem__(self, r: ResourceID) -> float:

@@ -28,54 +28,86 @@ import drftypes as dt
 #   s_n = x_n * max_{r}(d_{n,r} / c_r)
 
 
-@dataclass
 class User:
-  id: dt.UserID
 
-  # per task demands
-  req: dt.ResourceVec
-  weight: float = 1.0
-
-  # x_{n,i} (∈R): number of tasks allocated for user and the server
-  n_allocated = dict["Server", float]()
+  def __init__(self, id: dt.UserID, req: dt.ResourceVec, weight=1.0) -> None:
+    self.id = id
+    self.req = req  # per-task resource demands
+    self.weight = weight
+    # x_{n,i} (∈R): number of tasks allocated for user and the server
+    self._n_allocated = dict["Server", float]()
 
   def __hash__(self) -> int:
     return hash(self.id)
 
+  def __repr__(self) -> str:
+    def n_allocated_str(self):
+      return {s.id: v for s, v in self._n_allocated.items()}
+
+    return (
+        f"User(id={self.id} req={self.req} n_allocated={n_allocated_str(self)})"
+    )
+
+  def n_allocated(self, s: "Server") -> float:
+    return self._n_allocated.get(s, 0.0)
+
+  def set_n_allocated(self, s: "Server", v: float) -> None:
+    assert v > 0
+    self._n_allocated[s] = v
+    s.allocated.add(self)
+    logging.info(f"ADD: u={self} s={s}")
+
+  def add_n_allocated(self, s: "Server", v: float) -> None:
+    assert v > 0
+    if s not in self._n_allocated:
+      self._n_allocated[s] = 0
+      s.allocated.add(self)
+    self._n_allocated[s] += v
+    logging.info(f"ADD: u={self} s={s}")
+
   def total_n_tasks(self) -> float:
     total = 0.0
-    for n_tasks in self.n_allocated.values():
+    for n_tasks in self._n_allocated.values():
       assert n_tasks > 0
       total += n_tasks
     return total
 
   def total_usage(self) -> dt.ResourceVec:
     total = dt.ResourceVec.zeros()
-    for n_tasks in self.n_allocated.values():
+    for n_tasks in self._n_allocated.values():
       assert n_tasks > 0
       total = total + self.req * n_tasks
     return total
 
   def per_server_usage(self, s: "Server") -> dt.ResourceVec:
-    if s not in self.n_allocated:
+    if s not in self._n_allocated:
       return dt.ResourceVec.zeros()
-    return self.req * self.n_allocated[s]
+    return self.req * self._n_allocated[s]
 
 
-@dataclass
 class Server:
-  id: dt.ServerID
-  capacity: dt.ResourceVec
-  allocated = set[User]()
+
+  def __init__(self, id: dt.UserID, capacity: dt.ResourceVec) -> None:
+    self.id = id
+    self.capacity = capacity
+    self.allocated = set[User]()
 
   def __hash__(self) -> int:
     return hash(self.id)
 
+  def __repr__(self) -> str:
+    def allocated_str(self):
+      return {s.id for s in self.allocated}
+
+    return (
+        f"Server(id={self.id} cap={self.capacity} allocated={allocated_str(self)})"
+    )
+
   def total_usage(self) -> dt.ResourceVec:
     total = dt.ResourceVec.zeros()
     for u in self.allocated:
-      assert self in u.n_allocated
-      total = total + u.req * u.n_allocated[self]
+      assert self in u._n_allocated, f"u={u} s={self.id} alloc={self.allocated}"
+      total = total + u.req * u.n_allocated(self)
     return total
 
   def free(self) -> dt.ResourceVec:
@@ -101,9 +133,12 @@ def _n_tasks_assuming_idle_server(u: User, s: Server) -> float:
 def _vds(u: User, s: Server) -> float:
   return float(u.total_n_tasks()) / float(_n_tasks_assuming_idle_server(u, s))
 
-def _xxx(s: Server,
-        schedulable_users: set[User],
-        saturated_resources: set[dt.ResourceID]) -> set[User]:
+
+def _xxx(
+    s: Server,
+    schedulable_users: set[User],
+    saturated_resources: set[dt.ResourceID],
+) -> set[User]:
   max_vds = 0.0
   max_u = set[User]()
 
@@ -118,7 +153,10 @@ def _xxx(s: Server,
           max_u = {u}
   return max_u
 
-def _saturated_resources(s: Server, min_users: Iterable[User]) -> set[dt.ResourceID]:
+
+def _saturated_resources(
+    s: Server, min_users: Iterable[User]
+) -> set[dt.ResourceID]:
   saturated_resources = set[dt.ResourceID]()
   server_free = s.free()
   for u in min_users:
@@ -126,10 +164,12 @@ def _saturated_resources(s: Server, min_users: Iterable[User]) -> set[dt.Resourc
     for r in dt.ALL_RESOURCE_TYPES:
       if u.req[r] > 0 and server_free[r] <= dt.INFINITISIMAL:
         saturated_resources.add(r)
-  print("saturated", saturated_resources)
+  logging.info(f"saturated {saturated_resources}")
+  return saturated_resources
 
 
 class Scheduler:
+
   def __init__(self, servers: list[Server], users: list[User]) -> None:
     self._servers = servers
     self._usage = dt.ResourceVec([0, 0])
@@ -167,16 +207,17 @@ class Scheduler:
       schedulable_users: set[User],
       saturated_resources: set[dt.ResourceID],
   ) -> None:
-    logging.info(f"updateallocated: {s.id} min_vds={min_vds} schedulable={schedulable_users} saturated={saturated_resources}")
+    logging.info(
+        "updateallocated:"
+        f" {s.id} min_vds={min_vds} schedulable={schedulable_users} saturated={saturated_resources}"
+    )
     # Identify f_i
     free: dt.ResourceVec = s.free()
 
     def _nr(r: dt.ResourceID) -> User:
       return dt.argmax(
           self._users,
-          lambda u: _vds(u, s)
-          if u.n_allocated[s] * u.req[r] > 0
-          else -1,
+          lambda u: _vds(u, s) if u.n_allocated(s) * u.req[r] > 0 else -1,
       )
 
     def pick_beta(min_vds: float, z_star: float) -> float:
@@ -184,7 +225,7 @@ class Scheduler:
         lhs = min_vds + beta * z_star
         for r in saturated_resources:
           nr = _nr(r)
-          rhs = (nr.total_n_tasks() - beta * nr.n_allocated[s]) / (
+          rhs = (nr.total_n_tasks() - beta * nr.n_allocated(s)) / (
               nr.weight * _n_tasks_assuming_idle_server(nr, s)
           )
 
@@ -200,17 +241,13 @@ class Scheduler:
 
     for r in saturated_resources:
       nr = _nr(r)
-      free = free + nr.req * nr.n_allocated[s]
+      free = free + nr.req * nr.n_allocated(s)
 
-    yy = dt.sum(
+    d_i: dt.ResourceVec = dt.sum(
         schedulable_users,
-        lambda u: u.req
-        * u.weight
-        * _n_tasks_assuming_idle_server(u, s),
+        lambda u: u.req * u.weight * _n_tasks_assuming_idle_server(u, s),
         zero=dt.ResourceVec.zeros(),
     )
-    d_i: dt.ResourceVec = yy
-
     z_star: float = dt.min_in_list(
         dt.ALL_RESOURCE_TYPES, lambda r: free[r] / d_i[r]
     )
@@ -218,13 +255,13 @@ class Scheduler:
     beta = pick_beta(min_vds, z_star)
 
     for u in schedulable_users:
-      u.n_allocated[s] += (
-          beta * u.weight * _n_tasks_assuming_idle_server(u, s) * z_star
+      u.add_n_allocated(
+          s, beta * u.weight * _n_tasks_assuming_idle_server(u, s) * z_star
       )
 
     for r in saturated_resources:
       nr = _nr(r)
-      nr.n_allocated[s] = (1.0 - beta) * nr.n_allocated[s]
+      nr.set_n_allocated(s, (1.0 - beta) * nr.n_allocated(s))
 
   def schedule(self) -> bool:
     updated = False
@@ -246,14 +283,15 @@ class Scheduler:
         assert min_users
 
         # Compute R^*_i (saturated_resources)
-        saturated_resources = set[dt.ResourceID]()
-        for u in min_users:
-          user_usage = u.per_server_usage(s)
-          server_free = s.free()
-          for r in dt.ALL_RESOURCE_TYPES:
-            if u.req[r] > 0 and server_free[r] <= dt.INFINITISIMAL:
-              saturated_resources.add(r)
-        logging.info(f"saturated={saturated_resources}")
+        saturated_resources = _saturated_resources(s, min_users)
+        #     set[dt.ResourceID]()
+        # for u in min_users:
+        #   user_usage = u.per_server_usage(s)
+        #   server_free = s.free()
+        #   for r in dt.ALL_RESOURCE_TYPES:
+        #     if u.req[r] > 0 and server_free[r] <= dt.INFINITISIMAL:
+        #       saturated_resources.add(r)
+        # logging.info(f"saturated={saturated_resources}")
 
         xxx = _xxx(s, schedulable_users, saturated_resources)
         print(xxx)

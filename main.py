@@ -30,12 +30,16 @@ def psdsf_main() -> None:
       psdsf.Server(dt.ServerID("s1"), capacity=dt.ResourceVec([30, 20])),
   ]
   users = [
-      psdsf.User(dt.UserID("u0"), dt.ResourceVec([2.0, 1.0]), 0),
-      psdsf.User(dt.UserID("u1"), dt.ResourceVec([1.0, 2.0]), 0),
+      psdsf.User(dt.UserID("u0"), req=dt.ResourceVec([2.0, 1.0]), weight=1.0),
+      psdsf.User(dt.UserID("u1"), req=dt.ResourceVec([1.0, 2.0]), weight=1.0),
   ]
+  logging.info(f"servers={servers}")
+  logging.info(f"users={users}")
   s = psdsf.Scheduler(servers, users)
   s.schedule()
 
+  logging.info(f"servers={servers}")
+  logging.info(f"users={users}")
 
 def main() -> None:
   logging.basicConfig(

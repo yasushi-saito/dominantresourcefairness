@@ -46,7 +46,7 @@ class Scheduler:
     return self._usage
 
   def unused(self) -> dt.ResourceVec:
-    return self._capacity.sub(self._usage)
+    return self._capacity - self._usage
 
   def schedule(self) -> bool:
     user: Optional[User] = None
@@ -58,7 +58,7 @@ class Scheduler:
         user = u
     assert user
     demand = user.req
-    want_usage = self._usage.add(demand)
+    want_usage = self._usage + demand
     if not want_usage.le(self._capacity):
       return False
 

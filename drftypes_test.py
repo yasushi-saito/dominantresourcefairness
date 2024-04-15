@@ -21,6 +21,20 @@ class TestDRFTypes(unittest.TestCase):
     self.assertEqual(dt.ResourceVec([1, 2]), dt.ResourceVec([1, 2]))
     self.assertFalse(dt.ResourceVec([1, 2]) == dt.ResourceVec([2, 1]))
 
+  def test_resourcevec_mul(self):
+    self.assertEqual(dt.ResourceVec([1, 2]) * 3, dt.ResourceVec([3, 6]))
+
+  def test_resourcevec_add(self):
+    self.assertEqual(
+        dt.ResourceVec([1, 2]) + dt.ResourceVec([2, 3]), dt.ResourceVec([3, 5])
+    )
+
+  def test_resourcevec_sub(self):
+    self.assertEqual(
+        dt.ResourceVec([1, 2]) - dt.ResourceVec([2, 4]),
+        dt.ResourceVec([-1, -2]),
+    )
+
   def test_resourcevec_zeros(self):
     self.assertEqual(dt.ResourceVec.zeros(), dt.ResourceVec([0, 0]))
 
