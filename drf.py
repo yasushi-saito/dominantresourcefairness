@@ -6,6 +6,7 @@
 # NSDI 2011
 
 import logging
+from dataclasses import dataclass
 
 import drftypes as dt
 from typing import Optional
@@ -14,23 +15,24 @@ from typing import Optional
 @dataclass
 class User:
   user_id: dt.UserID
-  per_task_req: ResourceVec
-  n_tasks: int
+  # Per task demand
+  req: dt.ResourceVec
+  n_tasks: int = 0
 
-  def allocated(self) -> ResourceVec:
+  def allocated(self) -> dt.ResourceVec:
     """Amount of resources allocated to this user"""
-    return ResourceVec([x * self.n_tasks for x in self.per_task_req.values()])
+    return dt.ResourceVec([x * self.n_tasks for x in self.req.values()])
 
-  def dominant_share(self, capacity: ResourceVec) -> tuple[ResourceID, float]:
-    assert capacity.n_dims() == self.per_task_req.n_dims()
-    used = self.used_resources()
+  def dominant_share(self, capacity: dt.ResourceVec) -> tuple[dt.ResourceID, float]:
+    assert capacity.n_dims() == self.req.n_dims()
+    used = self.allocated()
     max_share = 0.0
-    dominant_resource_id = ResourceID(-1)
+    dominant_resource_id = dt.INVALID_RESOURCE_ID
     for resource_id, cap in enumerate(capacity.values()):
       share = used.values()[resource_id] / cap
       if share > max_share:
         max_share = share
-        dominant_resource_id = ResourceID(resource_id)
+        dominant_resource_id = dt.ResourceID(resource_id)
     return dominant_resource_id, max_share
 
 class Scheduler:
@@ -55,7 +57,7 @@ class Scheduler:
         min_dominant_share = share
         user = u
     assert user
-    demand = user.per_task_req
+    demand = user.req
     want_usage = self._usage.add(demand)
     if not want_usage.le(self._capacity):
       return False

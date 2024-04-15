@@ -6,6 +6,7 @@ ResourceID = NewType("ResourceID", int)
 
 CPU = ResourceID(0)
 RAM = ResourceID(1)
+INVALID_RESOURCE_ID = ResourceID(-1)
 
 ALL_RESOURCE_TYPES = [CPU, RAM]
 
@@ -21,14 +22,15 @@ class ResourceVec:
   def __str__(self) -> str:
     return f"{self._values}"
 
-  def n_dims(self) -> int:
-    return len(self._values)
+  def __eq__(self, a: "ResourceVec") -> bool:
+    assert len(self._values) == len(a._values)
+    for i in range(len(self._values)):
+      if self._values[i] != a._values[i]:
+        return False
+    return True
 
-  def values(self) -> list[float]:
-    return self._values
-
-  def get(self, id: ResourceID) -> float:
-    return self._values[id]
+  def __ne__(self, a: "ResourceVec") -> bool:
+    return not (self == a)
 
   def __getitem__(self, r: ResourceID) -> float:
     return self._values[r]
@@ -53,16 +55,32 @@ class ResourceVec:
       result.append(self._values[i] * v)
     return ResourceVec(result)
 
-  def add(self, a1: "ResourceVec") -> "ResourceVec":
-    return self + a1
+  def n_dims(self) -> int:
+    return len(self._values)
 
-  def sub(self, a1: "ResourceVec") -> "ResourceVec":
-    return self - a1
+  def values(self) -> list[float]:
+    return self._values
 
-  def mul(self, v: float) -> "ResourceVec":
-    return self * v
+  def get(self, id: ResourceID) -> float:
+    return self._values[id]
+
+  # def add(self, a1: "ResourceVec") -> "ResourceVec":
+  #   return self + a1
+
+  # def sub(self, a1: "ResourceVec") -> "ResourceVec":
+  #   return self - a1
+
+  # def mul(self, v: float) -> "ResourceVec":
+  #   return self * v
 
   def le(self, a1: "ResourceVec") -> bool:
+    """Check if every element is no greather than the counterpart in "a1".
+
+    Note that we don't use an operator overload for "<=" because this method
+    doesn't
+    satisfy the "<=" for typical arithmetic types.
+    """
+
     assert len(self._values) == len(a1._values)
 
     for i in range(len(self._values)):
@@ -71,7 +89,7 @@ class ResourceVec:
     return True
 
   @staticmethod
-  def zeros() -> ResourceVec:
+  def zeros() -> "ResourceVec":
     """Create an ResourceVec where all elements are 0.0"""
     return ResourceVec([0.0 for r in ALL_RESOURCE_TYPES])
 
@@ -110,12 +128,9 @@ def argmax(ll: Iterable[_T], fn: Callable[[_T], float]) -> _T:
   return max_key
 
 
-
 # Sigma operator
-def sum(
-    ll: Iterable[_T], fn: Callable[[_T], _V], zero: _V
-) -> _V:
+def sum(ll: Iterable[_T], fn: Callable[[_T], _V], zero: _V) -> _V:
   v = zero
   for l in ll:
-    v = v + fn(l) # type: ignore
+    v = v + fn(l)  # type: ignore
   return v
